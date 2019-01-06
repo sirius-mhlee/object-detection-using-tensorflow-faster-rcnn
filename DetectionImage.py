@@ -13,6 +13,7 @@ import RegionProposalNetwork as rpn
 import DetectionNetwork as dn
 
 import DataOperator as do
+import BBoxOperator as bo
 import RegionNMSOperator as nmso
 
 def generate_image(label_file_path, img, nms_detect_list):
@@ -69,7 +70,7 @@ def main():
 
         sess.run(tf.global_variables_initializer())
 
-        expand_np_img, width, height = do.load_image(sys.argv[6])
+        img, expand_np_img, width, height = do.load_image(sys.argv[6])
 
         region_scale_width = cfg.image_size_width / width
         region_scale_height = cfg.image_size_height / height
@@ -85,46 +86,29 @@ def main():
         feed_dict = {feature:conv_feature[0], region:nms_region}
         region_prob, region_bbox = sess.run([detection_model.cls_prob, detection_model.bbox_pred], feed_dict=feed_dict)
 
-        #region_bbox = bbox_transform_detect(nms_region[:, 1:], region_bbox)
-        #region_bbox = clip_bbox(region_bbox)
+        region_bbox = bo.transform_bbox_detect(nms_region[:, 1:], region_bbox)
+        region_bbox = bo.clip_bbox(region_bbox)
 
-        #detect_list = []
-        #for j in range(1, cfg.NUM_CLASSES):
-        #    inds = np.where(region_prob[:, j] > thresh)[0]
-        #    if len(inds) == 0:
-        #        continue
-        #    cls_probs = region_prob[inds, j]                  # Class Probabilities
-        #    cls_boxes = region_bbox[inds, j * 4:(j + 1) * 4]  # Class Box Predictions
-        #    cls_dets = np.hstack((cls_boxes, cls_probs[:, np.newaxis])) \
-        #        .astype(np.float32, copy=False)
-        #    keep = nms(cls_dets, cfg.TEST.NMS)          # Apply NMS
-        #    cls_dets = cls_dets[keep, :]
-        #    detect_list.append(cls_dets)
+        detect_list = []
+        for i in range(0, cfg.object_class_num):
+            idx = np.where(region_prob[:, i] > cfg.detect_prob_thresh)[0]
+            if len(idx) > 0:
+                prob = region_prob[idx, i]
+                bbox = region_bbox[idx, i * 4:(i + 1) * 4]
 
-        #for i in range(len(region_prob)):
-        #    prob = np.max(region_prob[i])
-        #    label = np.argmax(region_prob[i])
-        #    if label != cfg.object_class_num and prob > 0.5:
-        #        region = anchor[i]
-        #        region_width = (region.rect.right * region_scale_width) - (region.rect.left * region_scale_width)
-        #        region_hegith = (region.rect.bottom * region_scale_height) - (region.rect.top * region_scale_height)
-        #        region_center_x = (region.rect.left * region_scale_width) + region_width / 2
-        #        region_center_y = (region.rect.top * region_scale_height) + region_hegith / 2
+                region_list = np.hstack((bbox, prob[:, np.newaxis])).astype(np.float32, copy=False)
+                keep = bo.nms_bbox(region_list, cfg.detect_nms_thresh)
+                region_list = region_list[keep, :]
 
-        #        bbox_center_x = region_width * region_bbox[i][(label * 4) + 0] + region_center_x
-        #        bbox_center_y = region_hegith * region_bbox[i][(label * 4) + 1] + region_center_y
-        #        bbox_width = region_width * np.exp(region_bbox[i][(label * 4) + 2])
-        #        bbox_height = region_hegith * np.exp(region_bbox[i][(label * 4) + 3])
+                for detect in region_list:
+                    x1 = detect[0] / region_scale_width
+                    y1 = detect[1] / region_scale_height
+                    x2 = detect[2] / region_scale_width
+                    y2 = detect[3] / region_scale_height
+                    detect_list.append((label, detect[4], x1, y1, x2, y2))
 
-        #        bbox_left = bbox_center_x - bbox_width / 2
-        #        bbox_top = bbox_center_y - bbox_height / 2
-        #        bbox_right = bbox_center_x + bbox_width / 2
-        #        bbox_bottom = bbox_center_y + bbox_height / 2
-
-        #        detect_list.append((label, region_prob[i][label], bbox_left / region_scale_width, bbox_top / region_scale_height, bbox_right / region_scale_width, bbox_bottom / region_scale_height))
-
-        #save_img = generate_image(sys.argv[5], img, detect_list)
-        #cv2.imwrite(sys.argv[7], save_img)
+        save_img = generate_image(sys.argv[5], img, detect_list)
+        cv2.imwrite(sys.argv[7], save_img)
 
 if __name__ == '__main__':
     main()

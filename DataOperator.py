@@ -40,7 +40,7 @@ def load_image(img_path):
     reshape_img = cv2.resize(img, dsize=(cfg.image_size_width, cfg.image_size_height), interpolation=cv2.INTER_CUBIC)
     np_img = np.asarray(reshape_img, dtype=float)
     expand_np_img = np.expand_dims(np_img, axis=0)
-    return expand_np_img, width, height
+    return img, expand_np_img, width, height
 
 #def get_intersection_over_union(box1, box2):
 #    area_box1 = (box1[2] - box1[0]) * (box1[3] - box1[1])

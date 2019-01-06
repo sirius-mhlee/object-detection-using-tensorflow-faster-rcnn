@@ -7,6 +7,9 @@ object_class_num = 17
 #batch_size = 1
 #region_per_batch = 3
 
+detect_prob_thresh = 0.5
+detect_nms_thresh = 0.5
+
 anchor_num = 9
 anchor_base_size = 16
 anchor_ratios = [0.5, 1.0, 2.0]

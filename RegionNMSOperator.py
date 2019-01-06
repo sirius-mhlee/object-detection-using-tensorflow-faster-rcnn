@@ -2,6 +2,8 @@ import numpy as np
 
 import Configuration as cfg
 
+import BBoxOperator as bo
+
 def width_height_centers(anchor):
     w = anchor[2] - anchor[0] + 1
     h = anchor[3] - anchor[1] + 1
@@ -31,86 +33,6 @@ def scale_enum(anchor, scales):
     anchors = make_anchors(ws, hs, cx, cy)
     return anchors
 
-def bbox_transform_detect(anchors, preds):
-    if anchors.shape[0] == 0:
-        return np.zeros((0, preds.shape[1]), dtype=preds.dtype)
-
-    anchors = anchors.astype(preds.dtype, copy=False)
-
-    w = anchors[:, 2] - anchors[:, 0] + 1.0
-    h = anchors[:, 3] - anchors[:, 1] + 1.0
-    cx = anchors[:, 0] + 0.5 * w
-    cy = anchors[:, 1] + 0.5 * h
-
-    dx = preds[:, 0::4]
-    dy = preds[:, 1::4]
-    dw = preds[:, 2::4]
-    dh = preds[:, 3::4]
-
-    pred_cx = dx * w[:, np.newaxis] + cx[:, np.newaxis]
-    pred_cy = dy * h[:, np.newaxis] + cy[:, np.newaxis]
-    pred_w = np.exp(dw) * w[:, np.newaxis]
-    pred_h = np.exp(dh) * h[:, np.newaxis]
-
-    pred_bbox = np.zeros(preds.shape, dtype=preds.dtype)
-    pred_bbox[:, 0::4] = pred_cx - 0.5 * pred_w
-    pred_bbox[:, 1::4] = pred_cy - 0.5 * pred_h
-    pred_bbox[:, 2::4] = pred_cx + 0.5 * pred_w
-    pred_bbox[:, 3::4] = pred_cy + 0.5 * pred_h
-
-    return pred_bbox
-
-def clip_bbox(bbox):
-    bbox[:, 0::4] = np.maximum(np.minimum(bbox[:, 0::4], cfg.image_size_width - 1), 0)
-    bbox[:, 1::4] = np.maximum(np.minimum(bbox[:, 1::4], cfg.image_size_height - 1), 0)
-    bbox[:, 2::4] = np.maximum(np.minimum(bbox[:, 2::4], cfg.image_size_width - 1), 0)
-    bbox[:, 3::4] = np.maximum(np.minimum(bbox[:, 3::4], cfg.image_size_height - 1), 0)
-    return bbox
-
-def filter_bbox(bbox, min_size):
-    ws = bbox[:, 2] - bbox[:, 0] + 1
-    hs = bbox[:, 3] - bbox[:, 1] + 1
-    keep = np.where((ws >= min_size) & (hs >= min_size))[0]
-    return keep
-
-def nms(bbox, nms_thresh):
-    x1 = bbox[:, 0]
-    y1 = bbox[:, 1]
-    x2 = bbox[:, 2]
-    y2 = bbox[:, 3]
-    probs = bbox[:, 4]
-    order = probs.argsort()[::-1]
-    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-
-    bbox_num = bbox.shape[0]
-    suppressed = np.zeros(bbox_num, dtype=np.int)
-
-    keep = []
-    for i in range(bbox_num):
-        bbox_idx1 = order[i]
-        if suppressed[bbox_idx1] == 1:
-            continue
-
-        keep.append(bbox_idx1)
-        for j in range(i + 1, bbox_num):
-            bbox_idx2 = order[j]
-            if suppressed[bbox_idx2] == 1:
-                continue
-
-            inter_x1 = max(x1[bbox_idx1], x1[bbox_idx2])
-            inter_y1 = max(y1[bbox_idx1], y1[bbox_idx2])
-            inter_x2 = min(x2[bbox_idx1], x2[bbox_idx2])
-            inter_y2 = min(y2[bbox_idx1], y2[bbox_idx2])
-            inter_w = max(0.0, inter_x2 - inter_x1 + 1)
-            inter_h = max(0.0, inter_y2 - inter_y1 + 1)
-            inter_area = inter_w * inter_h
-
-            inter_ratio = inter_area / (areas[bbox_idx1] + areas[bbox_idx2] - inter_area)
-            if inter_ratio >= nms_thresh:
-                suppressed[bbox_idx2] = 1
-
-    return keep
-
 def nms_region(rpn_cls_prob, rpn_bbox_pred, trainable):
     base_anchor = np.array([1, 1, cfg.anchor_base_size, cfg.anchor_base_size]) - 1
     ratio_anchors = ratio_enum(base_anchor, cfg.anchor_ratios)
@@ -136,8 +58,8 @@ def nms_region(rpn_cls_prob, rpn_bbox_pred, trainable):
     cls_probs = cls_probs.transpose((0, 2, 3, 1)).reshape((-1, 1))
     bbox_preds = bbox_preds.transpose((0, 2, 3, 1)).reshape((-1, 4))
 
-    proposals = bbox_transform_detect(anchors, bbox_preds)
-    proposals = clip_bbox(proposals)
+    proposals = bo.transform_bbox_detect(anchors, bbox_preds)
+    proposals = bo.clip_bbox(proposals)
 
     if trainable:
         pre_nms_topN = cfg.anchor_pre_nms_topN_detect
@@ -150,7 +72,7 @@ def nms_region(rpn_cls_prob, rpn_bbox_pred, trainable):
         nms_thresh = cfg.anchor_nms_thresh_detect
         min_size = cfg.anchor_min_size_detect
 
-    keep = filter_bbox(proposals, min_size)
+    keep = bo.filter_bbox(proposals, min_size)
     proposals = proposals[keep, :]
     cls_probs = cls_probs[keep]
 
@@ -160,7 +82,7 @@ def nms_region(rpn_cls_prob, rpn_bbox_pred, trainable):
     proposals = proposals[order, :]
     cls_probs = cls_probs[order]
     
-    keep = nms(np.hstack((proposals, cls_probs)), nms_thresh)
+    keep = bo.nms_bbox(np.hstack((proposals, cls_probs)), nms_thresh)
     if post_nms_topN > 0:
         keep = keep[:post_nms_topN]
     proposals = proposals[keep, :]
