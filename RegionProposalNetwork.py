@@ -3,6 +3,8 @@ import tensorflow as tf
 
 import Configuration as cfg
 
+import AnchorOperator as ao
+
 class RegionProposalNetwork:
     def __init__(self, model, trainable):
         self.model = model
@@ -15,6 +17,20 @@ class RegionProposalNetwork:
         self.rpn_cls_score = self.conv_layer(self.rpn_conv1, 256, cfg.anchor_num * 2, 1, 1, 'SAME', False, 'rpn_cls_score')
         self.rpn_bbox_pred = self.conv_layer(self.rpn_conv1, 256, cfg.anchor_num * 4, 1, 1, 'SAME', False, 'rpn_bbox_pred')
 
+        if self.trainable:
+            self.anchor_target()
+            self.rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels')
+            self.rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets')
+            self.rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights')
+            self.rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights')
+
+        #    self.loss = tf.nn.softmax_cross_entropy_with_logits(logits=self.fc8, labels=label_holder)
+        #    self.loss_mean = tf.reduce_mean(self.loss)
+        #    self.optimizer = tf.train.AdamOptimizer(learning_rate=0.0025).minimize(self.loss_mean)
+
+        #    self.correct_prediction = tf.equal(tf.argmax(self.fc8, 1), tf.argmax(label_holder, 1))
+        #    self.accuracy_mean = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+
         rpn_cls_shape = tf.shape(self.rpn_cls_score)
 
         self.rpn_cls_score = tf.transpose(self.rpn_cls_score, [0, 3, 1, 2])
@@ -26,14 +42,6 @@ class RegionProposalNetwork:
         self.rpn_cls_prob = tf.transpose(self.rpn_cls_prob, [0, 3, 1, 2])
         self.rpn_cls_prob = tf.reshape(self.rpn_cls_prob, [rpn_cls_shape[0], rpn_cls_shape[3], rpn_cls_shape[1], rpn_cls_shape[2]])
         self.rpn_cls_prob = tf.transpose(self.rpn_cls_prob, [0, 2, 3, 1])
-
-        #if self.trainable:
-        #    self.loss = tf.nn.softmax_cross_entropy_with_logits(logits=self.fc8, labels=label_holder)
-        #    self.loss_mean = tf.reduce_mean(self.loss)
-        #    self.optimizer = tf.train.AdamOptimizer(learning_rate=0.0025).minimize(self.loss_mean)
-
-        #    self.correct_prediction = tf.equal(tf.argmax(self.fc8, 1), tf.argmax(label_holder, 1))
-        #    self.accuracy_mean = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
 
     def get_var(self, initial_value, name, idx, var_name):
         if self.model is not None and name in self.model:
@@ -68,6 +76,10 @@ class RegionProposalNetwork:
             relu = tf.nn.relu(bias)
 
             return relu
+
+    def anchor_target(self):
+        _anchors = ao.generate_anchors()
+        return None
 
     #def get_var_count(self):
     #    count = 0

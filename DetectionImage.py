@@ -14,7 +14,7 @@ import DetectionNetwork as dn
 
 import DataOperator as do
 import BBoxOperator as bo
-import RegionNMSOperator as nmso
+import RegionOperator as ro
 
 def generate_image(label_file_path, img, nms_detect_list):
     label_file = open(label_file_path, 'r')
@@ -81,7 +81,7 @@ def main():
         feed_dict = {feature:conv_feature[0]}
         cls_prob, bbox_pred = sess.run([rpn_model.rpn_cls_prob, rpn_model.rpn_bbox_pred], feed_dict=feed_dict)
 
-        nms_region = nmso.nms_region(cls_prob, bbox_pred, False)
+        nms_region = ro.nms_region(cls_prob, bbox_pred, False)
 
         feed_dict = {feature:conv_feature[0], region:nms_region}
         region_prob, region_bbox = sess.run([detection_model.cls_prob, detection_model.bbox_pred], feed_dict=feed_dict)

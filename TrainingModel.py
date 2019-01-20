@@ -1,15 +1,20 @@
 import sys
 import cv2
 import os
+import random as rand
 
 import numpy as np
 import tensorflow as tf
 
 import Configuration as cfg
 
-import AlexNet as an
+import AlexNetConv as anc
+import RegionProposalNetwork as rpn
+import DetectionNetwork as dn
 
 import DataOperator as do
+import BBoxOperator as bo
+import RegionOperator as ro
 
 def print_batch_info(epoch_idx, batch_idx, loss_mean_value):
     print('Epoch : {0}, Batch : {1}, Loss Mean : {2}'.format(epoch_idx, batch_idx, loss_mean_value))
@@ -25,17 +30,26 @@ def main():
         alexnet_finetune_data = do.load_alexnet_finetune_data(sys.argv[2])
         alexnet_finetune_size = len(alexnet_finetune_data)
 
-        image = tf.placeholder(tf.float32, [None, cfg.image_size_width, cfg.image_size_height, 3])
-        label = tf.placeholder(tf.float32, [None, cfg.object_class_num])
-        bbox = tf.placeholder(tf.float32, [None, 9])
-        bbox_slice_idx = tf.placeholder(tf.int32, [None, 2])
-        finetune_label = tf.placeholder(tf.float32, [None, cfg.object_class_num + 1])
+        # (Image) -> AlexNetConv -> (Feature Image)
+        # (Feature Image) -> RegionProposalNetwork -> (ROI Coord List with Prob)
+        # (ROI Coord List with Prob) -> RegionNMS -> (ROI Coord that deleted small ROI, and low Prob ROI)
+        # (Feature Image), (ROI Coord that deleted small ROI, and low Prob ROI) -> DetectionNetwork -> (Final BBOX), (Class Prob)
 
-        alexnet_model = an.AlexNet(None, alexnet_train_mean, True)
-        with tf.name_scope('alexnet_content'):
-            alexnet_model.build(image, label)
-        with tf.name_scope('alexnet_finetune_content'):
-            alexnet_model.build_finetune(bbox, bbox_slice_idx, finetune_label)
+        image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
+        feature = tf.placeholder(tf.float32, [1, 6, 6, 256])
+        region = tf.placeholder(tf.float32, [None, 5])
+
+        alexnetconv_model = anc.AlexNetConv(None, mean, True)
+        with tf.name_scope('alexnetconv_content'):
+            alexnetconv_model.build(image)
+
+        rpn_model = rpn.RegionProposalNetwork(None, True)
+        with tf.name_scope('rpn_content'):
+            rpn_model.build(feature)
+
+        detection_model = dn.DetectionNetwork(None, True)
+        with tf.name_scope('detection_content'):
+            detection_model.build(feature, region)
 
         writer = tf.summary.FileWriter('./log/', sess.graph)
 
