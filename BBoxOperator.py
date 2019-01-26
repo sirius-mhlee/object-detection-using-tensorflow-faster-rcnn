@@ -2,6 +2,25 @@ import numpy as np
 
 import Configuration as cfg
 
+def transform_bbox_train(input_bbox, gt_bbox):
+    input_w = input_bbox[:, 2] - input_bbox[:, 0] + 1.0
+    input_h = input_bbox[:, 3] - input_bbox[:, 1] + 1.0
+    input_cx = input_bbox[:, 0] + 0.5 * input_w
+    input_cy = input_bbox[:, 1] + 0.5 * input_h
+
+    gt_w = gt_bbox[:, 2] - gt_bbox[:, 0] + 1.0
+    gt_h = gt_bbox[:, 3] - gt_bbox[:, 1] + 1.0
+    gt_cx = gt_bbox[:, 0] + 0.5 * gt_w
+    gt_cy = gt_bbox[:, 1] + 0.5 * gt_h
+
+    tx = (gt_cx - input_cx) / input_w
+    ty = (gt_cy - input_cy) / input_h
+    tw = np.log(gt_w / input_w)
+    th = np.log(gt_h / input_h)
+
+    bbox = np.vstack((tx, ty, tw, th)).transpose()
+    return bbox
+
 def transform_bbox_detect(input_bbox, pred_bbox):
     if input_bbox.shape[0] == 0:
         return np.zeros((0, pred_bbox.shape[1]), dtype=pred_bbox.dtype)
@@ -30,6 +49,27 @@ def transform_bbox_detect(input_bbox, pred_bbox):
     bbox[:, 3::4] = cy + 0.5 * h
 
     return bbox
+
+def overlap_bbox(bbox, query_bbox):
+    N = bbox.shape[0]
+    K = query_bbox.shape[0]
+
+    overlap = np.zeros((N, K), dtype=np.float)
+    for k in range(K):
+        query_bbox_area = ((query_bbox[k, 2] - query_bbox[k, 0] + 1) * (query_bbox[k, 3] - query_bbox[k, 1] + 1))
+
+        for n in range(N):
+            bbox_area = ((bbox[n, 2] - bbox[n, 0] + 1) * (bbox[n, 3] - bbox[n, 1] + 1))
+
+            w = (min(bbox[n, 2], query_bbox[k, 2]) - max(bbox[n, 0], query_bbox[k, 0]) + 1)
+            h = (min(bbox[n, 3], query_bbox[k, 3]) - max(bbox[n, 1], query_bbox[k, 1]) + 1)
+            inter_bbox_area = w * h
+
+            if w > 0 and h > 0:
+                union_bbox_area = bbox_area + query_bbox_area - inter_bbox_area
+                overlap[n, k] = inter_bbox_area / union_bbox_area
+
+    return overlap
 
 def clip_bbox(bbox):
     bbox[:, 0::4] = np.maximum(np.minimum(bbox[:, 0::4], cfg.image_size_width - 1), 0)

@@ -21,3 +21,8 @@ anchor_nms_thresh_detect = 0.7
 anchor_min_size_detect = 16
 
 anchor_shift_value = 12
+
+anchor_train_positive_overlap = 0.7
+anchor_train_negative_overlap = 0.3
+anchor_train_fg_ratio = 0.5
+anchor_train_batch_size = 256

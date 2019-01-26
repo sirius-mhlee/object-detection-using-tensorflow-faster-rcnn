@@ -37,6 +37,7 @@ def main():
 
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
         feature = tf.placeholder(tf.float32, [1, 6, 6, 256])
+        bbox = tf.placeholder(tf.float32, [None, 5])
         region = tf.placeholder(tf.float32, [None, 5])
 
         alexnetconv_model = anc.AlexNetConv(None, mean, True)
@@ -45,7 +46,7 @@ def main():
 
         rpn_model = rpn.RegionProposalNetwork(None, True)
         with tf.name_scope('rpn_content'):
-            rpn_model.build(feature)
+            rpn_model.build(feature, bbox)
 
         detection_model = dn.DetectionNetwork(None, True)
         with tf.name_scope('detection_content'):

@@ -14,7 +14,6 @@ import DetectionNetwork as dn
 
 import DataOperator as do
 import BBoxOperator as bo
-import RegionOperator as ro
 
 def generate_image(label_file_path, img, nms_detect_list):
     label_file = open(label_file_path, 'r')
@@ -50,7 +49,8 @@ def main():
 
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
         feature = tf.placeholder(tf.float32, [1, 6, 6, 256])
-        region = tf.placeholder(tf.float32, [None, 5])
+        rpn_cls_prob = tf.placeholder(tf.float32, [1, 6, 6, 256])
+        rpn_bbox_pred = tf.placeholder(tf.float32, [1, 6, 6, 256])
 
         model = do.load_model(sys.argv[1])
         mean = do.load_mean(sys.argv[2])
@@ -66,7 +66,7 @@ def main():
         model = do.load_model(sys.argv[4])
         detection_model = dn.DetectionNetwork(model, False)
         with tf.name_scope('detection_content'):
-            detection_model.build(feature, region)
+            detection_model.build(feature, rpn_cls_prob, rpn_bbox_pred)
 
         sess.run(tf.global_variables_initializer())
 
@@ -81,9 +81,7 @@ def main():
         feed_dict = {feature:conv_feature[0]}
         cls_prob, bbox_pred = sess.run([rpn_model.rpn_cls_prob, rpn_model.rpn_bbox_pred], feed_dict=feed_dict)
 
-        nms_region = ro.nms_region(cls_prob, bbox_pred, False)
-
-        feed_dict = {feature:conv_feature[0], region:nms_region}
+        feed_dict = {feature:conv_feature[0], rpn_cls_prob:cls_prob, rpn_bbox_pred:bbox_pred}
         region_prob, region_bbox = sess.run([detection_model.cls_prob, detection_model.bbox_pred], feed_dict=feed_dict)
 
         region_bbox = bo.transform_bbox_detect(nms_region[:, 1:], region_bbox)

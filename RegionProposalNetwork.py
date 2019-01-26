@@ -4,6 +4,7 @@ import tensorflow as tf
 import Configuration as cfg
 
 import AnchorOperator as ao
+import BBoxOperator as bo
 
 class RegionProposalNetwork:
     def __init__(self, model, trainable):
@@ -11,18 +12,19 @@ class RegionProposalNetwork:
         self.var_dict = {}
         self.trainable = trainable
 
-    def build(self, feature_holder, label_holder=None):
+    def build(self, feature_holder, bbox_holder=None):
         self.rpn_conv1 = self.conv_layer(feature_holder, 256, 256, 3, 1, 'SAME', True, 'rpn_conv1')
 
         self.rpn_cls_score = self.conv_layer(self.rpn_conv1, 256, cfg.anchor_num * 2, 1, 1, 'SAME', False, 'rpn_cls_score')
         self.rpn_bbox_pred = self.conv_layer(self.rpn_conv1, 256, cfg.anchor_num * 4, 1, 1, 'SAME', False, 'rpn_bbox_pred')
 
         if self.trainable:
-            self.anchor_target()
-            self.rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels')
-            self.rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets')
-            self.rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights')
-            self.rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights')
+            rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights = tf.py_func(ao.target_anchors, [bbox_holder, self.rpn_cls_score], [tf.float32, tf.float32, tf.float32, tf.float32])
+
+            self.rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels, dtype=tf.int32))
+            self.rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets)
+            self.rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights)
+            self.rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights)
 
         #    self.loss = tf.nn.softmax_cross_entropy_with_logits(logits=self.fc8, labels=label_holder)
         #    self.loss_mean = tf.reduce_mean(self.loss)
@@ -77,9 +79,15 @@ class RegionProposalNetwork:
 
             return relu
 
-    def anchor_target(self):
-        _anchors = ao.generate_anchors()
-        return None
+    def anchor_target(self, bbox_holder):
+        rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights = ao.target_anchors(bbox_holder, self.rpn_cls_score)
+
+        rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels, dtype=tf.int32))
+        rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets)
+        rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights)
+        rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights)
+
+        return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
 
     #def get_var_count(self):
     #    count = 0

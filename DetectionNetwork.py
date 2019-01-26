@@ -3,14 +3,27 @@ import tensorflow as tf
 
 import Configuration as cfg
 
+import RegionOperator as ro
+
 class DetectionNetwork:
     def __init__(self, model, trainable):
         self.model = model
         self.var_dict = {}
         self.trainable = trainable
 
-    def build(self, feature_holder, region_holder, label_holder=None):
-        region_holder = tf.stack([region_holder[:,0], region_holder[:,2], region_holder[:,1], region_holder[:,4], region_holder[:,3]], axis=1)
+    def build(self, feature_holder, cls_prob_holder, bbox_pred_holder, region_holder=None, label_holder=None):
+        nms_region = tf.reshape(tf.py_func(ro.nms_region, [cls_prob_holder, bbox_pred_holder], [tf.float32]), [-1, 5])
+
+        if self.trainable:
+            rois, labels, region_targets, region_inside_weights, region_outside_weights = tf.py_func(ro.target_region, [nms_region, region_holder], [tf.float32, tf.float32, tf.float32, tf.float32, tf.float32])
+
+            self.rois = tf.reshape(rois, [-1, 5]) 
+            self.labels = tf.convert_to_tensor(tf.cast(labels, dtype=tf.int32))
+            self.region_targets = tf.convert_to_tensor(region_targets)
+            self.region_inside_weights = tf.convert_to_tensor(region_inside_weights)
+            self.region_outside_weights = tf.convert_to_tensor(region_outside_weights)
+
+        nms_region = tf.stack([nms_region[:,0], nms_region[:,2], nms_region[:,1], nms_region[:,4], nms_region[:,3]], axis=1)
 
         self.feature_roi = self.roi_pool(feature_holder, region_holder, 14, 'feature_roi')
         self.feature_pool = self.max_pool(self.feature_roi, 2, 2, 'SAME', 'feature_pool')
