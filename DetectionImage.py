@@ -49,8 +49,8 @@ def main():
 
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
         feature = tf.placeholder(tf.float32, [1, 6, 6, 256])
-        rpn_cls_prob = tf.placeholder(tf.float32, [1, 6, 6, 256])
-        rpn_bbox_pred = tf.placeholder(tf.float32, [1, 6, 6, 256])
+        rpn_cls_prob = tf.placeholder(tf.float32, [1, cfg.anchor_num * 2])
+        rpn_bbox_pred = tf.placeholder(tf.float32, [1, cfg.anchor_num * 4])
 
         model = do.load_model(sys.argv[1])
         mean = do.load_mean(sys.argv[2])

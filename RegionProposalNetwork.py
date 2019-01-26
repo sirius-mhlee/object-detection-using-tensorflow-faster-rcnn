@@ -79,16 +79,6 @@ class RegionProposalNetwork:
 
             return relu
 
-    def anchor_target(self, bbox_holder):
-        rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights = ao.target_anchors(bbox_holder, self.rpn_cls_score)
-
-        rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels, dtype=tf.int32))
-        rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets)
-        rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights)
-        rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights)
-
-        return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
-
     #def get_var_count(self):
     #    count = 0
     #    for var in list(self.var_dict.values()):
