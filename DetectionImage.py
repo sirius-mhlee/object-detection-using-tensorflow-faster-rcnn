@@ -43,25 +43,22 @@ def generate_image(label_file_path, img, nms_detect_list):
 def main():
     with tf.Session() as sess:
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
-        feature = tf.placeholder(tf.float32, [1, 6, 6, 256])
-        rpn_cls_prob = tf.placeholder(tf.float32, [1, 6, 6, cfg.anchor_num * 2])
-        rpn_bbox_pred = tf.placeholder(tf.float32, [1, 6, 6, cfg.anchor_num * 4])
 
         model = do.load_model(sys.argv[1])
         mean = do.load_mean(sys.argv[2])
-        alexnetconv_model = anc.AlexNetConv(model, mean, False)
+        alexnetconv_model = anc.AlexNetConv(model, mean)
         with tf.name_scope('alexnetconv_content'):
             alexnetconv_model.build(image)
 
         model = do.load_model(sys.argv[3])
         rpn_model = rpn.RegionProposalNetwork(model, False)
         with tf.name_scope('rpn_content'):
-            rpn_model.build(feature)
+            rpn_model.build(alexnetconv_model.pool5)
 
         model = do.load_model(sys.argv[4])
         detection_model = dn.DetectionNetwork(model, False)
         with tf.name_scope('detection_content'):
-            detection_model.build(feature, rpn_cls_prob, rpn_bbox_pred)
+            detection_model.build(alexnetconv_model.pool5, rpn_model.rpn_cls_prob, rpn_model.rpn_bbox_pred)
 
         sess.run(tf.global_variables_initializer())
 
@@ -71,12 +68,6 @@ def main():
         region_scale_height = cfg.image_size_height / height
 
         feed_dict = {image:expand_np_img}
-        conv_feature = sess.run([alexnetconv_model.pool5], feed_dict=feed_dict)
-
-        feed_dict = {feature:conv_feature[0]}
-        cls_prob, bbox_pred = sess.run([rpn_model.rpn_cls_prob, rpn_model.rpn_bbox_pred], feed_dict=feed_dict)
-
-        feed_dict = {feature:conv_feature[0], rpn_cls_prob:cls_prob, rpn_bbox_pred:bbox_pred}
         nms_region, region_prob, region_bbox = sess.run([detection_model.nms_region, detection_model.cls_prob, detection_model.bbox_pred], feed_dict=feed_dict)
 
         region_bbox = bo.transform_bbox_detect(nms_region[:, 1:], region_bbox)
@@ -98,7 +89,7 @@ def main():
                     y1 = detect[1] / region_scale_height
                     x2 = detect[2] / region_scale_width
                     y2 = detect[3] / region_scale_height
-                    detect_list.append((label, detect[4], x1, y1, x2, y2))
+                    detect_list.append((i, detect[4], x1, y1, x2, y2))
 
         save_img = generate_image(sys.argv[5], img, detect_list)
         cv2.imwrite(sys.argv[7], save_img)

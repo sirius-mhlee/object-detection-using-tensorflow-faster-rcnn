@@ -16,64 +16,57 @@ import DataOperator as do
 import BBoxOperator as bo
 import RegionOperator as ro
 
-def print_batch_info(epoch_idx, batch_idx, loss_mean_value):
-    print('Epoch : {0}, Batch : {1}, Loss Mean : {2}'.format(epoch_idx, batch_idx, loss_mean_value))
-
-def print_epoch_info(epoch_idx, accuracy_mean_value):
-    print('Epoch : {0}, Accuracy Mean : {1}'.format(epoch_idx, accuracy_mean_value))
+def print_epoch_info(epoch_idx, loss_value):
+    print('Epoch : {0}, Loss Sum : {1}'.format(epoch_idx, loss_value))
 
 def main():
     with tf.Session() as sess:
-        alexnet_train_data, alexnet_train_mean = do.load_alexnet_train_data(sys.argv[1])
-        alexnet_train_size = len(alexnet_train_data)
-
-        alexnet_finetune_data = do.load_alexnet_finetune_data(sys.argv[2])
-        alexnet_finetune_size = len(alexnet_finetune_data)
-
-        # (Image) -> AlexNetConv -> (Feature Image)
-        # (Feature Image) -> RegionProposalNetwork -> (ROI Coord List with Prob)
-        # (ROI Coord List with Prob) -> RegionNMS -> (ROI Coord that deleted small ROI, and low Prob ROI)
-        # (Feature Image), (ROI Coord that deleted small ROI, and low Prob ROI) -> DetectionNetwork -> (Final BBOX), (Class Prob)
+        train_data = do.load_train_data(sys.argv[3])
+        train_size = len(train_data)
 
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
-        feature = tf.placeholder(tf.float32, [1, 6, 6, 256])
-        rpn_cls_prob = tf.placeholder(tf.float32, [1, 6, 6, cfg.anchor_num * 2])
-        rpn_bbox_pred = tf.placeholder(tf.float32, [1, 6, 6, cfg.anchor_num * 4])
         region = tf.placeholder(tf.float32, [None, 5])
 
-        alexnetconv_model = anc.AlexNetConv(None, mean, True)
+        model = do.load_model(sys.argv[1])
+        mean = do.load_mean(sys.argv[2])
+        alexnetconv_model = anc.AlexNetConv(model, mean)
         with tf.name_scope('alexnetconv_content'):
             alexnetconv_model.build(image)
 
         rpn_model = rpn.RegionProposalNetwork(None, True)
         with tf.name_scope('rpn_content'):
-            rpn_model.build(feature, region)
+            rpn_model.build(alexnetconv_model.pool5, region)
 
         detection_model = dn.DetectionNetwork(None, True)
         with tf.name_scope('detection_content'):
-            detection_model.build(feature, rpn_cls_prob, rpn_bbox_pred, region)
+            detection_model.build(alexnetconv_model.pool5, rpn_model.rpn_cls_prob, rpn_model.rpn_bbox_pred, region)
+    
+        step_cnt = 0
+        with tf.name_scope('total_loss'):
+            loss = tf.reduce_sum(rpn_model.rpn_cls_loss + rpn_model.rpn_bbox_loss + detection_model.detection_cls_loss + (1.0 * detection_model.detection_region_loss))
+
+            decay_steps = cfg.learning_rate_decay_ratio * train_size
+            learning_rate = tf.train.exponential_decay(learning_rate=cfg.learning_rate, global_step=step_cnt, decay_steps=decay_steps, decay_rate=cfg.learning_rate_decay_factor, staircase=True)
+
+            optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
 
         writer = tf.summary.FileWriter('./log/', sess.graph)
 
         sess.run(tf.global_variables_initializer())
 
-        print('Training AlexNet')
+        print('Training Model')
         for epoch_idx in range(cfg.training_max_epoch):
-            for batch_idx in range(alexnet_train_size // cfg.batch_size):
-                batch_image, batch_label = do.get_alexnet_train_batch_data(sess, alexnet_train_data, cfg.batch_size)
-                feed_dict = {image:batch_image, label:batch_label}
+            step_cnt += 1
 
-                _, loss_mean_value = sess.run([alexnet_model.optimizer, alexnet_model.loss_mean], feed_dict=feed_dict)
-                print_batch_info(epoch_idx, batch_idx, loss_mean_value)
+            train_image, train_bbox = do.get_train_data(sess, train_data)
 
-            batch_image, batch_label = do.get_alexnet_train_batch_data(sess, alexnet_train_data, cfg.batch_size)
-            feed_dict = {image:batch_image, label:batch_label}
+            feed_dict = {image:train_image, region:train_bbox}
+            _, loss_value = sess.run([optimizer, loss], feed_dict=feed_dict)
 
-            accuracy_mean_value = sess.run(alexnet_model.accuracy_mean, feed_dict=feed_dict)
-            print_epoch_info(epoch_idx, accuracy_mean_value)
+            print_epoch_info(epoch_idx, loss_value)
 
-        do.save_model(sess, alexnet_model.var_dict, sys.argv[3])
-        do.save_mean(alexnet_model.mean, sys.argv[4])
+        do.save_model(sess, rpn_model.var_dict, sys.argv[4])
+        do.save_model(sess, detection_model.var_dict, sys.argv[5])
 
 if __name__ == '__main__':
     main()

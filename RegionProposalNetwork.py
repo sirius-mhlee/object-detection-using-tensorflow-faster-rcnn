@@ -50,18 +50,18 @@ class RegionProposalNetwork:
 
             with tf.name_scope('rpn_bbox_loss'):
                 self.rpn_bbox_targets = tf.transpose(self.rpn_bbox_targets, [0, 2, 3, 1])
-                self.rpn_inside_weights = tf.transpose(self.rpn_inside_weights, [0, 2, 3, 1])
-                self.rpn_outside_weights = tf.transpose(self.rpn_outside_weights, [0, 2, 3, 1])
+                self.rpn_bbox_inside_weights = tf.transpose(self.rpn_bbox_inside_weights, [0, 2, 3, 1])
+                self.rpn_bbox_outside_weights = tf.transpose(self.rpn_bbox_outside_weights, [0, 2, 3, 1])
         
-                diff = tf.multiply(self.rpn_inside_weights, self.rpn_bbox_pred - self.rpn_bbox_targets)
+                diff = tf.multiply(self.rpn_bbox_inside_weights, self.rpn_bbox_pred - self.rpn_bbox_targets)
 
                 sigma = 3.0
                 conditional = tf.less(tf.abs(diff), 1 / sigma ** 2)
-                close = 0.5 * (sigma * x) ** 2
-                far = tf.abs(x) - 0.5 / sigma ** 2
+                close = 0.5 * (sigma * diff) ** 2
+                far = tf.abs(diff) - 0.5 / sigma ** 2
                 diff_smooth_L1 = tf.where(conditional, close, far)
         
-                self.rpn_bbox_loss = 10.0 * tf.reduce_sum(tf.multiply(self.rpn_outside_weights, diff_smooth_L1))
+                self.rpn_bbox_loss = 10.0 * tf.reduce_sum(tf.multiply(self.rpn_bbox_outside_weights, diff_smooth_L1))
 
     def get_var(self, initial_value, name, idx, var_name):
         if self.model is not None and name in self.model:

@@ -32,10 +32,10 @@ def nms_region(rpn_cls_prob, rpn_bbox_pred, trainable):
     proposals = bo.clip_bbox(proposals)
 
     if trainable:
-        pre_nms_topN = cfg.anchor_pre_nms_topN_detect
-        post_nms_topN = cfg.anchor_post_nms_topN_detect
-        nms_thresh = cfg.anchor_nms_thresh_detect
-        min_size = cfg.anchor_min_size_detect
+        pre_nms_topN = cfg.anchor_pre_nms_topN_train
+        post_nms_topN = cfg.anchor_post_nms_topN_train
+        nms_thresh = cfg.anchor_nms_thresh_train
+        min_size = cfg.anchor_min_size_train
     else:
         pre_nms_topN = cfg.anchor_pre_nms_topN_detect
         post_nms_topN = cfg.anchor_post_nms_topN_detect
@@ -65,10 +65,10 @@ def nms_region(rpn_cls_prob, rpn_bbox_pred, trainable):
 
 def regression_target_region(target_rois):
     class_list = target_rois[:, 0]
-    region_targets = np.zeros((class_list.size, cfg.object_class_num * 4), dtype=np.float32)
+    region_targets = np.zeros((class_list.size, cfg.object_class_num_with_bg * 4), dtype=np.float32)
     region_inside_weights = np.zeros(region_targets.shape, dtype=np.float32)
     
-    idx = np.where(class_idx < cfg.object_class_num)[0]
+    idx = np.where(class_list < cfg.object_class_num)[0]
     for i in idx:
         class_idx = class_list[i]
         
@@ -99,13 +99,14 @@ def target_region(nms_region, region_holder):
     bg_idx = np.where((max_overlaps >= cfg.region_train_bg_thresh_lo) & (max_overlaps < cfg.region_train_bg_thresh_hi))[0]
     bg_rois_per_image = cfg.region_train_batch_size - fg_rois_per_image
     bg_rois_per_image = min(bg_rois_per_image, bg_idx.size)
+    bg_rois_per_image = min(bg_rois_per_image, np.round(cfg.region_train_bg_max_ratio * cfg.region_train_batch_size).astype(np.int32))
     if bg_idx.size > 0:
         bg_idx = np.random.choice(bg_idx, size=bg_rois_per_image, replace=False)
 
     keep_idx = np.append(fg_idx, bg_idx)
 
     labels = labels[keep_idx]
-    labels[fg_rois_per_image:] = 0
+    labels[fg_rois_per_image:] = cfg.object_class_num
     
     rois = region[keep_idx]
     transform_rois = bo.transform_bbox_train(rois[:, 1:5], region_holder[gt_assignment[keep_idx], :4])
@@ -115,8 +116,8 @@ def target_region(nms_region, region_holder):
 
     rois = rois.reshape(-1, 5)
     labels = labels.reshape(-1, 1)
-    region_targets = region_targets.reshape(-1, cfg.object_class_num * 4)
-    region_inside_weights = region_inside_weights.reshape(-1, cfg.object_class_num * 4)
+    region_targets = region_targets.reshape(-1, cfg.object_class_num_with_bg * 4)
+    region_inside_weights = region_inside_weights.reshape(-1, cfg.object_class_num_with_bg * 4)
     region_outside_weights = np.array(region_inside_weights > 0).astype(np.float32)
 
     return rois, labels, region_targets, region_inside_weights, region_outside_weights

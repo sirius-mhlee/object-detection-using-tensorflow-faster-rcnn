@@ -2,6 +2,8 @@ import numpy as np
 
 import Configuration as cfg
 
+import BBoxOperator as bo
+
 def get_anchor_rect_info(anchor):
     w = anchor[2] - anchor[0] + 1
     h = anchor[3] - anchor[1] + 1
@@ -115,7 +117,7 @@ def target_anchors(bbox_holder, rpn_cls_score):
     bbox_targets = unmap_anchors(bbox_targets, total_anchors, inside_anchors_idx, fill=0)
     bbox_inside_weights = unmap_anchors(bbox_inside_weights, total_anchors, inside_anchors_idx, fill=0)
     bbox_outside_weights = unmap_anchors(bbox_outside_weights, total_anchors, inside_anchors_idx, fill=0)
-    
+
     labels = labels.reshape((1, score_height, score_width, cfg.anchor_num)).transpose(0, 3, 1, 2)
 
     rpn_labels = labels.reshape((1, 1, cfg.anchor_num * score_height, score_width))

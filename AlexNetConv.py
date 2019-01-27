@@ -4,11 +4,10 @@ import tensorflow as tf
 import Configuration as cfg
 
 class AlexNetConv:
-    def __init__(self, model, mean, trainable):
+    def __init__(self, model, mean):
         self.model = model
         self.mean = mean
         self.var_dict = {}
-        self.trainable = trainable
 
     def build(self, img_holder):
         b, g, r = tf.split(axis=3, num_or_size_splits=3, value=img_holder)
