@@ -89,7 +89,9 @@ def main():
                     y1 = detect[1] / region_scale_height
                     x2 = detect[2] / region_scale_width
                     y2 = detect[3] / region_scale_height
-                    detect_list.append((i, detect[4], x1, y1, x2, y2))
+
+                    if abs(x2 - x1 + 1) >= cfg.detect_size_thresh and abs(y2 - y1 + 1) >= cfg.detect_size_thresh:
+                        detect_list.append((i, detect[4], x1, y1, x2, y2))
 
         save_img = generate_image(sys.argv[5], img, detect_list)
         cv2.imwrite(sys.argv[7], save_img)
