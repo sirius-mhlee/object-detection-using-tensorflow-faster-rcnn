@@ -26,13 +26,6 @@ class RegionProposalNetwork:
             self.rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights)
             self.rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights)
 
-        #    self.loss = tf.nn.softmax_cross_entropy_with_logits(logits=self.fc8, labels=label_holder)
-        #    self.loss_mean = tf.reduce_mean(self.loss)
-        #    self.optimizer = tf.train.AdamOptimizer(learning_rate=0.0025).minimize(self.loss_mean)
-
-        #    self.correct_prediction = tf.equal(tf.argmax(self.fc8, 1), tf.argmax(label_holder, 1))
-        #    self.accuracy_mean = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
-
         rpn_cls_shape = tf.shape(self.rpn_cls_score)
 
         self.rpn_cls_score = tf.transpose(self.rpn_cls_score, [0, 3, 1, 2])
@@ -44,6 +37,31 @@ class RegionProposalNetwork:
         self.rpn_cls_prob = tf.transpose(self.rpn_cls_prob, [0, 3, 1, 2])
         self.rpn_cls_prob = tf.reshape(self.rpn_cls_prob, [rpn_cls_shape[0], rpn_cls_shape[3], rpn_cls_shape[1], rpn_cls_shape[2]])
         self.rpn_cls_prob = tf.transpose(self.rpn_cls_prob, [0, 2, 3, 1])
+
+        if self.trainable:
+            with tf.name_scope('rpn_cls_loss'):
+                self.rpn_cls_score = tf.reshape(self.rpn_cls_score, [-1, 2])
+                self.rpn_labels = tf.reshape(self.rpn_labels, [-1])
+
+                self.rpn_cls_score = tf.reshape(tf.gather(self.rpn_cls_score, tf.where(tf.not_equal(self.rpn_labels, -1))), [-1, 2])
+                self.rpn_labels = tf.reshape(tf.gather(self.rpn_labels, tf.where(tf.not_equal(self.rpn_labels, -1))), [-1])
+
+                self.rpn_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.rpn_cls_score, labels=self.rpn_labels))
+
+            with tf.name_scope('rpn_bbox_loss'):
+                self.rpn_bbox_targets = tf.transpose(self.rpn_bbox_targets, [0, 2, 3, 1])
+                self.rpn_inside_weights = tf.transpose(self.rpn_inside_weights, [0, 2, 3, 1])
+                self.rpn_outside_weights = tf.transpose(self.rpn_outside_weights, [0, 2, 3, 1])
+        
+                diff = tf.multiply(self.rpn_inside_weights, self.rpn_bbox_pred - self.rpn_bbox_targets)
+
+                sigma = 3.0
+                conditional = tf.less(tf.abs(diff), 1 / sigma ** 2)
+                close = 0.5 * (sigma * x) ** 2
+                far = tf.abs(x) - 0.5 / sigma ** 2
+                diff_smooth_L1 = tf.where(conditional, close, far)
+        
+                self.rpn_bbox_loss = 10.0 * tf.reduce_sum(tf.multiply(self.rpn_outside_weights, diff_smooth_L1))
 
     def get_var(self, initial_value, name, idx, var_name):
         if self.model is not None and name in self.model:
@@ -78,9 +96,3 @@ class RegionProposalNetwork:
             relu = tf.nn.relu(bias)
 
             return relu
-
-    #def get_var_count(self):
-    #    count = 0
-    #    for var in list(self.var_dict.values()):
-    #        count += np.multiply(var.get_shape().as_list())
-    #    return count

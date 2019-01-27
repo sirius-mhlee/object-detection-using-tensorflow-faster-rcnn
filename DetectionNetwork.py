@@ -11,11 +11,12 @@ class DetectionNetwork:
         self.var_dict = {}
         self.trainable = trainable
 
-    def build(self, feature_holder, cls_prob_holder, bbox_pred_holder, region_holder=None, label_holder=None):
-        nms_region = tf.reshape(tf.py_func(ro.nms_region, [cls_prob_holder, bbox_pred_holder], [tf.float32]), [-1, 5])
+    def build(self, feature_holder, cls_prob_holder, bbox_pred_holder, region_holder=None):
+        self.nms_region = tf.reshape(tf.py_func(ro.nms_region, [cls_prob_holder, bbox_pred_holder, self.trainable], [tf.float32]), [-1, 5])
+        reorder_nms_region = tf.stack([self.nms_region[:,0], self.nms_region[:,2], self.nms_region[:,1], self.nms_region[:,4], self.nms_region[:,3]], axis=1)
 
         if self.trainable:
-            rois, labels, region_targets, region_inside_weights, region_outside_weights = tf.py_func(ro.target_region, [nms_region, region_holder], [tf.float32, tf.float32, tf.float32, tf.float32, tf.float32])
+            rois, labels, region_targets, region_inside_weights, region_outside_weights = tf.py_func(ro.target_region, [self.nms_region, region_holder], [tf.float32, tf.float32, tf.float32, tf.float32, tf.float32])
 
             self.rois = tf.reshape(rois, [-1, 5]) 
             self.labels = tf.convert_to_tensor(tf.cast(labels, dtype=tf.int32))
@@ -23,9 +24,9 @@ class DetectionNetwork:
             self.region_inside_weights = tf.convert_to_tensor(region_inside_weights)
             self.region_outside_weights = tf.convert_to_tensor(region_outside_weights)
 
-        nms_region = tf.stack([nms_region[:,0], nms_region[:,2], nms_region[:,1], nms_region[:,4], nms_region[:,3]], axis=1)
+            reorder_nms_region = tf.stack([self.rois[:,0], self.rois[:,2], self.rois[:,1], self.rois[:,4], self.rois[:,3]], axis=1)
 
-        self.feature_roi = self.roi_pool(feature_holder, region_holder, 14, 'feature_roi')
+        self.feature_roi = self.roi_pool(feature_holder, reorder_nms_region, 14, 'feature_roi')
         self.feature_pool = self.max_pool(self.feature_roi, 2, 2, 'SAME', 'feature_pool')
 
         self.fc1 = self.fc_layer(self.feature_pool, 12544, 1024, 'fc1')
@@ -40,16 +41,25 @@ class DetectionNetwork:
         if self.trainable:
             self.relu2 = tf.nn.dropout(self.relu2, 0.5)
 
-        self.cls_prob = self.fc_layer(self.relu2, 1024, cfg.object_class_num, 'cls_prob')
+        self.cls_fc = self.fc_layer(self.relu2, 1024, cfg.object_class_num, 'cls_fc')
+        self.cls_prob = tf.nn.softmax(self.cls_fc, name='cls_prob')
+
         self.bbox_pred = self.fc_layer(self.relu2, 1024, cfg.object_class_num * 4, 'bbox_pred')
 
-        #if self.trainable:
-        #    self.loss = tf.nn.softmax_cross_entropy_with_logits(logits=self.fc8, labels=label_holder)
-        #    self.loss_mean = tf.reduce_mean(self.loss)
-        #    self.optimizer = tf.train.AdamOptimizer(learning_rate=0.0025).minimize(self.loss_mean)
+        if self.trainable:
+            with tf.name_scope('detection_cls_loss'):
+                self.detection_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.squeeze(self.cls_fc), labels=self.labels))
 
-        #    self.correct_prediction = tf.equal(tf.argmax(self.fc8, 1), tf.argmax(label_holder, 1))
-        #    self.accuracy_mean = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+            with tf.name_scope('detection_bbox_loss'):
+                diff = tf.multiply(self.region_inside_weights, self.bbox_pred - self.region_targets)
+
+                sigma = 1.0
+                conditional = tf.less(tf.abs(diff), 1 / sigma ** 2)
+                close = 0.5 * (sigma * x) ** 2
+                far = tf.abs(x) - 0.5 / sigma ** 2
+                diff_smooth_L1 = tf.where(conditional, close, far)
+        
+                self.detection_region_loss = 1.0 * tf.reduce_mean(tf.reduce_sum(tf.multiply(self.region_outside_weights, diff_smooth_L1), reduction_indices=[1]))
 
     def get_var(self, initial_value, name, idx, var_name):
         if self.model is not None and name in self.model:
@@ -89,8 +99,3 @@ class DetectionNetwork:
         box_batch_idx = tf.cast(box_holder[:, 0], tf.int32)
         return tf.image.crop_and_resize(bottom, box_rect, box_batch_idx, [crop_size, crop_size], name=name)
 
-    #def get_var_count(self):
-    #    count = 0
-    #    for var in list(self.var_dict.values()):
-    #        count += np.multiply(var.get_shape().as_list())
-    #    return count

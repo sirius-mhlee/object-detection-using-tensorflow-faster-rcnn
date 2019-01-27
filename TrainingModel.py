@@ -37,7 +37,8 @@ def main():
 
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
         feature = tf.placeholder(tf.float32, [1, 6, 6, 256])
-        bbox = tf.placeholder(tf.float32, [None, 5])
+        rpn_cls_prob = tf.placeholder(tf.float32, [1, 6, 6, cfg.anchor_num * 2])
+        rpn_bbox_pred = tf.placeholder(tf.float32, [1, 6, 6, cfg.anchor_num * 4])
         region = tf.placeholder(tf.float32, [None, 5])
 
         alexnetconv_model = anc.AlexNetConv(None, mean, True)
@@ -46,11 +47,11 @@ def main():
 
         rpn_model = rpn.RegionProposalNetwork(None, True)
         with tf.name_scope('rpn_content'):
-            rpn_model.build(feature, bbox)
+            rpn_model.build(feature, region)
 
         detection_model = dn.DetectionNetwork(None, True)
         with tf.name_scope('detection_content'):
-            detection_model.build(feature, region)
+            detection_model.build(feature, rpn_cls_prob, rpn_bbox_pred, region)
 
         writer = tf.summary.FileWriter('./log/', sess.graph)
 
@@ -69,21 +70,6 @@ def main():
             feed_dict = {image:batch_image, label:batch_label}
 
             accuracy_mean_value = sess.run(alexnet_model.accuracy_mean, feed_dict=feed_dict)
-            print_epoch_info(epoch_idx, accuracy_mean_value)
-
-        print('Finetuning AlexNet')
-        for epoch_idx in range(cfg.finetuning_max_epoch):
-            for batch_idx in range(alexnet_finetune_size // cfg.batch_size):
-                batch_image, batch_bbox, batch_bbox_slice_idx, batch_label = do.get_alexnet_finetune_batch_data(sess, alexnet_finetune_data, cfg.batch_size)
-                feed_dict = {image:batch_image, bbox:batch_bbox, bbox_slice_idx:batch_bbox_slice_idx, finetune_label:batch_label}
-
-                _, loss_mean_value = sess.run([alexnet_model.finetune_optimizer, alexnet_model.finetune_loss_mean], feed_dict=feed_dict)
-                print_batch_info(epoch_idx, batch_idx, loss_mean_value)
-
-            batch_image, batch_bbox, batch_bbox_slice_idx, batch_label = do.get_alexnet_finetune_batch_data(sess, alexnet_finetune_data, cfg.batch_size)
-            feed_dict = {image:batch_image, bbox:batch_bbox, bbox_slice_idx:batch_bbox_slice_idx, finetune_label:batch_label}
-
-            accuracy_mean_value = sess.run(alexnet_model.finetune_accuracy_mean, feed_dict=feed_dict)
             print_epoch_info(epoch_idx, accuracy_mean_value)
 
         do.save_model(sess, alexnet_model.var_dict, sys.argv[3])

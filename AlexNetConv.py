@@ -10,7 +10,7 @@ class AlexNetConv:
         self.var_dict = {}
         self.trainable = trainable
 
-    def build(self, img_holder, label_holder=None):
+    def build(self, img_holder):
         b, g, r = tf.split(axis=3, num_or_size_splits=3, value=img_holder)
         bgr = tf.concat(axis=3, values=[b - self.mean[0], g - self.mean[1], r - self.mean[2]])
 
@@ -26,14 +26,6 @@ class AlexNetConv:
         self.conv4 = self.conv_layer(self.conv3, 384, 384, 3, 1, 'SAME', 'conv4')
         self.conv5 = self.conv_layer(self.conv4, 384, 256, 3, 1, 'SAME', 'conv5')
         self.pool5 = self.max_pool(self.conv5, 3, 2, 'VALID', 'pool5')
-
-        #if self.trainable:
-        #    self.loss = tf.nn.softmax_cross_entropy_with_logits(logits=self.fc8, labels=label_holder)
-        #    self.loss_mean = tf.reduce_mean(self.loss)
-        #    self.optimizer = tf.train.AdamOptimizer(learning_rate=0.0025).minimize(self.loss_mean)
-
-        #    self.correct_prediction = tf.equal(tf.argmax(self.fc8, 1), tf.argmax(label_holder, 1))
-        #    self.accuracy_mean = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
 
     def get_var(self, initial_value, name, idx, var_name):
         if self.model is not None and name in self.model:
@@ -72,8 +64,3 @@ class AlexNetConv:
     def max_pool(self, bottom, kernel_size, stride_size, padding_type, name):
         return tf.nn.max_pool(bottom, ksize=[1, kernel_size, kernel_size, 1], strides=[1, stride_size, stride_size, 1], padding=padding_type, name=name)
 
-    #def get_var_count(self):
-    #    count = 0
-    #    for var in list(self.var_dict.values()):
-    #        count += np.multiply(var.get_shape().as_list())
-    #    return count

@@ -42,15 +42,10 @@ def generate_image(label_file_path, img, nms_detect_list):
 
 def main():
     with tf.Session() as sess:
-        # (Image) -> AlexNetConv -> (Feature Image)
-        # (Feature Image) -> RegionProposalNetwork -> (ROI Coord List with Prob)
-        # (ROI Coord List with Prob) -> RegionNMS -> (ROI Coord that deleted small ROI, and low Prob ROI)
-        # (Feature Image), (ROI Coord that deleted small ROI, and low Prob ROI) -> DetectionNetwork -> (Final BBOX), (Class Prob)
-
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
         feature = tf.placeholder(tf.float32, [1, 6, 6, 256])
-        rpn_cls_prob = tf.placeholder(tf.float32, [1, cfg.anchor_num * 2])
-        rpn_bbox_pred = tf.placeholder(tf.float32, [1, cfg.anchor_num * 4])
+        rpn_cls_prob = tf.placeholder(tf.float32, [1, 6, 6, cfg.anchor_num * 2])
+        rpn_bbox_pred = tf.placeholder(tf.float32, [1, 6, 6, cfg.anchor_num * 4])
 
         model = do.load_model(sys.argv[1])
         mean = do.load_mean(sys.argv[2])
@@ -82,7 +77,7 @@ def main():
         cls_prob, bbox_pred = sess.run([rpn_model.rpn_cls_prob, rpn_model.rpn_bbox_pred], feed_dict=feed_dict)
 
         feed_dict = {feature:conv_feature[0], rpn_cls_prob:cls_prob, rpn_bbox_pred:bbox_pred}
-        region_prob, region_bbox = sess.run([detection_model.cls_prob, detection_model.bbox_pred], feed_dict=feed_dict)
+        nms_region, region_prob, region_bbox = sess.run([detection_model.nms_region, detection_model.cls_prob, detection_model.bbox_pred], feed_dict=feed_dict)
 
         region_bbox = bo.transform_bbox_detect(nms_region[:, 1:], region_bbox)
         region_bbox = bo.clip_bbox(region_bbox)
