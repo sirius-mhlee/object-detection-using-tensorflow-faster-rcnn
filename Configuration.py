@@ -3,19 +3,19 @@ image_size_height = 227
 object_class_num = 17
 object_class_num_with_bg = 18
 
-training_max_epoch = 50
-learning_rate = 0.0001
+training_max_epoch = 100
+learning_rate = 0.000005
 learning_rate_decay_factor = 0.5
 learning_rate_decay_ratio = 10
 
 detect_prob_thresh = 0.5
-detect_nms_thresh = 0.3
+detect_nms_thresh = 0.01
 detect_size_thresh = 16
 
 anchor_num = 9
 anchor_base_size = 16
 anchor_ratios = [0.5, 1.0, 2.0]
-anchor_scales = [8, 16, 32]
+anchor_scales = [2, 4, 8]
 
 anchor_pre_nms_topN_train = 12000
 anchor_post_nms_topN_train = 2000

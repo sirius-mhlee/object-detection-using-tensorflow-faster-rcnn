@@ -55,7 +55,7 @@ class RegionProposalNetwork:
         
                 diff = tf.multiply(self.rpn_bbox_inside_weights, self.rpn_bbox_pred - self.rpn_bbox_targets)
 
-                sigma = 3.0
+                sigma = 1.0
                 conditional = tf.less(tf.abs(diff), 1 / sigma ** 2)
                 close = 0.5 * (sigma * diff) ** 2
                 far = tf.abs(diff) - 0.5 / sigma ** 2
