@@ -6,9 +6,9 @@ http://www.rossgirshick.info/
 Using 17 Category Flower Dataset.
 http://www.robots.ox.ac.uk/~vgg/data/flowers/17/
 	
-	Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks
-  Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
-  Neural Information Processing Systems (NIPS), 2015
+    Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks
+    Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
+    Neural Information Processing Systems (NIPS), 2015
 
 Training Usage
 -----
