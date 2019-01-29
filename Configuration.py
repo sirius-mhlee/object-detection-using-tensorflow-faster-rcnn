@@ -3,8 +3,8 @@ image_size_height = 227
 object_class_num = 17
 object_class_num_with_bg = 18
 
-training_max_epoch = 20
-learning_rate = 0.005
+training_max_epoch = 100
+learning_rate = 0.001
 learning_rate_decay_factor = 0.5
 learning_rate_decay_ratio = 10
 
