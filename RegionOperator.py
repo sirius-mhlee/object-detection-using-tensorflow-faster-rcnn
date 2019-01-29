@@ -99,7 +99,6 @@ def target_region(nms_region, region_holder):
     bg_idx = np.where((max_overlaps >= cfg.region_train_bg_thresh_lo) & (max_overlaps < cfg.region_train_bg_thresh_hi))[0]
     bg_rois_per_image = cfg.region_train_batch_size - fg_rois_per_image
     bg_rois_per_image = min(bg_rois_per_image, bg_idx.size)
-    bg_rois_per_image = min(bg_rois_per_image, np.round(cfg.region_train_bg_max_ratio * cfg.region_train_batch_size).astype(np.int32))
     if bg_idx.size > 0:
         bg_idx = np.random.choice(bg_idx, size=bg_rois_per_image, replace=False)
 

@@ -21,14 +21,14 @@ def print_epoch_info(epoch_idx, loss_value):
 
 def main():
     with tf.Session() as sess:
-        train_data = do.load_train_data(sys.argv[3])
+        train_data = do.load_train_data(sys.argv[1])
         train_size = len(train_data)
 
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
         region = tf.placeholder(tf.float32, [None, 5])
 
-        model = do.load_model(sys.argv[1])
-        mean = do.load_mean(sys.argv[2])
+        model = do.load_model(sys.argv[2])
+        mean = do.load_mean(sys.argv[3])
         alexnetconv_model = anc.AlexNetConv(model, mean)
         with tf.name_scope('alexnetconv_content'):
             alexnetconv_model.build(image)
@@ -65,8 +65,9 @@ def main():
 
             print_epoch_info(epoch_idx, loss_value)
 
-        do.save_model(sess, rpn_model.var_dict, sys.argv[4])
-        do.save_model(sess, detection_model.var_dict, sys.argv[5])
+        do.save_model(sess, alexnetconv_model.var_dict, sys.argv[4])
+        do.save_model(sess, rpn_model.var_dict, sys.argv[5])
+        do.save_model(sess, detection_model.var_dict, sys.argv[6])
 
 if __name__ == '__main__':
     main()

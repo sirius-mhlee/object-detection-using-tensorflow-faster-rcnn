@@ -44,8 +44,8 @@ def main():
     with tf.Session() as sess:
         image = tf.placeholder(tf.float32, [1, cfg.image_size_width, cfg.image_size_height, 3])
 
-        model = do.load_model(sys.argv[1])
-        mean = do.load_mean(sys.argv[2])
+        model = do.load_model(sys.argv[2])
+        mean = do.load_mean(sys.argv[1])
         alexnetconv_model = anc.AlexNetConv(model, mean)
         with tf.name_scope('alexnetconv_content'):
             alexnetconv_model.build(image)
