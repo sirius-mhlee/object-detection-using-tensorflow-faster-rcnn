@@ -4,7 +4,7 @@ object_class_num = 17
 object_class_num_with_bg = 18
 
 training_max_epoch = 100
-learning_rate = 0.001
+learning_rate = 0.0005
 learning_rate_decay_factor = 0.5
 learning_rate_decay_ratio = 10
 
